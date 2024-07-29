@@ -1,12 +1,13 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "me.fallenbreath.template_mod.mixins",
+  "package": "icu.takeneko.mcimgui.mixin",
   "compatibilityLevel": "{{COMPATIBILITY_LEVEL}}",
   "mixins": [
-    "MinecraftServerMixin"
   ],
   "client": [
+    "MinecraftClientMixin",
+    "WindowMixin"
   ],
   "injectors": {
     "defaultRequire": 1

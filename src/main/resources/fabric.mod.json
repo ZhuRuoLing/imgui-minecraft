@@ -4,25 +4,25 @@
   "version": "${version}",
 
   "name": "${name}",
-  "description": "Template for my fabric mods",
+  "description": "Dear ImGui integration for minecraft",
   "authors": [
-    "Fallen_Breath"
+    "ZhuRuoLing"
   ],
   "contact": {
     "homepage": "https://modrinth.com",
-    "sources": "https://github.com/Fallen-Breath/fabric-mod-template"
+    "sources": "https://github.com/ZhuRuoLing/imgui-minecraft"
   },
 
-  "icon": "assets/template_mod/icon.png",
+  "icon": "assets/imgui_minecraft/icon.png",
 
-  "environment": "*",
+  "environment": "client",
   "entrypoints": {
-    "main": [
-      "me.fallenbreath.template_mod.TemplateMod"
+    "client": [
+      "icu.takeneko.mcimgui.McImGui"
     ]
   },
   "mixins": [
-    "template_mod.mixins.json"
+    "imgui_minecraft.mixins.json"
   ],
 
   "depends": {

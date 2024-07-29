@@ -1,14 +1,27 @@
+plugins{
+	id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+
 apply plugin: 'maven-publish'
 apply plugin: 'com.github.hierynomus.license'
 apply plugin: 'fabric-loom'
 apply plugin: 'com.replaymod.preprocess'
 apply plugin: 'me.fallenbreath.yamlang'
 
+
 int mcVersion = project.mcVersion
+def imguiVersion = project.imguiVersion
 
 preprocess {
 	tabIndentation = true
 }
+
+configurations {
+	api.extendsFrom includeApi
+	shadowInclude
+}
+
 
 repositories {
 	maven {
@@ -27,28 +40,24 @@ configurations {
 dependencies {
 	// loom
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-	// runtime mods
-//	if (mcVersion < 11904) {
-//		modRuntimeOnly(mcVersion < 11900 ? "com.github.astei:lazydfu:0.1.2" : "com.github.Fallen-Breath:lazydfu:a7cfc44c0c")
-//	}
-//	// [FEATURE] MIXIN_AUDITOR
-//	modRuntimeOnly 'me.fallenbreath:mixin-auditor:0.1.0'
+	//imgui
+	shadowInclude api("io.github.spair:imgui-java-binding:$imguiVersion")
+	shadowInclude api("io.github.spair:imgui-java-lwjgl3:$imguiVersion"){
+		exclude group: "org.lwjgl"
+	}
 
-	// dependencies
-//	include(modImplementation(fabricApi.module("fabric-resource-loader-v0", project.fabric_api_version)))
-//	include(modImplementation("me.fallenbreath:conditional-mixin-fabric:${project.conditionalmixin_version}"))
-//	include(annotationProcessor(implementation("io.github.llamalad7:mixinextras-fabric:${project.mixinextras_version}")))
+	shadowInclude implementation("io.github.spair:imgui-java-natives-windows:$imguiVersion")
+	shadowInclude implementation("io.github.spair:imgui-java-natives-linux:$imguiVersion")
+	shadowInclude implementation("io.github.spair:imgui-java-natives-macos:$imguiVersion")
 }
 
-String MIXIN_CONFIG_PATH = 'template_mod.mixins.json'
-String LANG_DIR = 'assets/template_mod/lang'
+String MIXIN_CONFIG_PATH = 'imgui_minecraft.mixins.json'
+String LANG_DIR = 'assets/imgui_minecraft/lang'
 JavaVersion JAVA_COMPATIBILITY
-if (mcVersion >= 12005) {
-	JAVA_COMPATIBILITY = JavaVersion.VERSION_21
-} else if (mcVersion >= 11800) {
+if (mcVersion >= 11800) {
 	JAVA_COMPATIBILITY = JavaVersion.VERSION_17
 } else if (mcVersion >= 11700) {
 	JAVA_COMPATIBILITY = JavaVersion.VERSION_16
@@ -57,21 +66,25 @@ if (mcVersion >= 12005) {
 }
 JavaVersion MIXIN_COMPATIBILITY_LEVEL = JAVA_COMPATIBILITY
 
+shadowJar {
+	archiveClassifier = "all-dev"
+	configurations = [project.configurations.shadowInclude]
+	minimize()
+	from("LICENSE") {
+		rename { "${it}_${project.archivesBaseName}" }
+	}
+	for (final def ex in ["linux", "windows", "macos", "native-image", "versions"]) {
+		exclude("/META-INF/$ex*")
+	}
+	exclude "/org/lwjgl*"
+}
+
 loom {
 	runConfigs.configureEach {
-		// to make sure it generates all "Minecraft Client (:subproject_name)" applications
 		ideConfigGenerated = true
 		runDir '../../run'
 		vmArgs '-Dmixin.debug.export=true'
 	}
-//	// [FEATURE] MIXIN_AUDITOR
-//	runs {
-//		serverMixinAudit {
-//			server()
-//			vmArgs '-DmixinAuditor.audit=true'
-//			ideConfigGenerated false
-//		}
-//	}
 }
 
 remapJar {
@@ -81,8 +94,6 @@ remapJar {
 String modVersionSuffix = ''
 String artifactVersion = project.mod_version
 String artifactVersionSuffix = ''
-// detect github action environment variables
-// https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
 if (System.getenv("BUILD_RELEASE") != "true") {
 	String buildNumber = System.getenv("BUILD_ID")
 	modVersionSuffix += buildNumber != null ? ('+build.' + buildNumber) : '-SNAPSHOT'
@@ -91,13 +102,7 @@ if (System.getenv("BUILD_RELEASE") != "true") {
 String fullModVersion = project.mod_version + modVersionSuffix
 String fullProjectVersion, fullArtifactVersion
 
-// Example version values:
-//   project.mod_version     1.0.3                      (the base mod version)
-//   modVersionSuffix        +build.88                  (use github action build number if possible)
-//   artifactVersionSuffix   -SNAPSHOT
-//   fullModVersion          1.0.3+build.88             (the actual mod version to use in the mod)
-//   fullProjectVersion      v1.0.3-mc1.15.2+build.88   (in build output jar name)
-//   fullArtifactVersion     1.0.3-mc1.15.2-SNAPSHOT    (maven artifact version)
+
 
 group = project.maven_group
 if (System.getenv("JITPACK") == "true") {
@@ -111,6 +116,12 @@ if (System.getenv("JITPACK") == "true") {
 	fullArtifactVersion = artifactVersion + '-mc' + project.minecraft_version + artifactVersionSuffix
 }
 version = fullProjectVersion
+
+task("remapShadowJar", type: net.fabricmc.loom.task.RemapJarTask, dependsOn: shadowJar) {
+	input = shadowJar.archiveFile
+	archiveFileName = project.archives_base_name + "-" + version + "-shadow.jar"
+	addNestedDependencies = true
+}
 
 // See https://youtrack.jetbrains.com/issue/IDEA-296490
 // if IDEA complains about "Cannot resolve resource filtering of MatchingCopyAction" and you want to know why
@@ -197,7 +208,7 @@ license {
 	}
 	ext {
 		name = project.mod_name
-		author = 'Fallen_Breath'
+		author = 'ZhuRuoLing'
 		year = Calendar.getInstance().get(Calendar.YEAR).toString()
 	}
 }
@@ -213,21 +224,7 @@ publishing {
             version = fullArtifactVersion
 		}
 	}
-
-	// select the repositories you want to publish to
 	repositories {
-		// mavenLocal()
-
-//		// [FEATURE] FALLENS_MAVEN
-//		maven {
-//			url = fullArtifactVersion.endsWith("SNAPSHOT") ? "https://maven.fallenbreath.me/snapshots" : "https://maven.fallenbreath.me/releases"
-//			credentials(PasswordCredentials) {
-//				username = 'fallen'
-//				password = System.getenv("FALLENS_MAVEN_TOKEN")
-//			}
-//			authentication {
-//				basic(BasicAuthentication)
-//			}
-//		}
+		mavenLocal()
 	}
 }
