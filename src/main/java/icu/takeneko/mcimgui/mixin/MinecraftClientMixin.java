@@ -35,18 +35,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Minecraft.class)
 public class MinecraftClientMixin {
-    @Shadow @Final private Window window;
+    @Shadow
+    @Final
+    private Window window;
 
     @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;initRenderer(IZ)V"))
-    void onInitRenders(GameConfig gameConfig, CallbackInfo ci){
+    void onInitRenders(GameConfig gameConfig, CallbackInfo ci) {
         McImGui.imGuiGlfw.init(window.getWindow(), true);
         McImGui.imGuiGl3.init(McImGui.glslVersion);
     }
 
-    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V"))
-    void onRender(boolean bl, CallbackInfo ci){
+    @Inject(
+            method = "runTick",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V",
+                    ordinal = 0
+            ))
+    void onNewFrame(boolean bl, CallbackInfo ci){
         McImGui.imGuiGlfw.newFrame();
         ImGui.newFrame();
+    }
+
+    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V"))
+    void onRender(boolean bl, CallbackInfo ci) {
         McImGui.APPLICATIONS.forEach(Application::frame);
         ImGui.render();
         McImGui.imGuiGl3.renderDrawData(ImGui.getDrawData());
